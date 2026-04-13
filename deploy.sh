@@ -35,7 +35,7 @@ echo "▶ Clone / mise à jour du repo..."
 if [ -d "$APP_DIR" ]; then
   cd $APP_DIR && git pull
 else
-  git clone https://github.com/TON_REPO/avicontrole.git $APP_DIR
+  git clone https://github.com/g4devlife/avicontrole.git $APP_DIR
 fi
 
 echo "▶ Backend — installation deps + build..."
