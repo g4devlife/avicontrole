@@ -5,19 +5,21 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="Avi Contrôle"
+        android:label="Contrôle"
         android:theme="@style/AppTheme"
         android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- Activité principale -->
         <activity
-            android:name=".ui.MainActivity"
+            android:name="com.remotectrl.ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:screenOrientation="portrait">
@@ -30,20 +32,30 @@
 
         <!-- Activité d'activation de licence -->
         <activity
-            android:name=".ui.ActivationActivity"
+            android:name="com.remotectrl.ui.ActivationActivity"
+            android:exported="false" />
+
+        <!-- Activité Écran Noir (Fallback) -->
+        <activity
+            android:name="com.remotectrl.ui.BlackoutActivity"
+            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar.Fullscreen"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
             android:exported="false" />
 
         <!-- Service de capture d'écran (MediaProjection) -->
         <service
-            android:name=".service.ScreenCaptureService"
+            android:name="com.remotectrl.service.ScreenCaptureService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaProjection" />
 
         <!-- Service d'accessibilité pour l'injection tactile -->
         <service
-            android:name=".service.ControlAccessibilityService"
+            android:name="com.remotectrl.service.ControlAccessibilityService"
             android:exported="true"
-            android:label="Avi Contrôle - Contrôle tactile"
+            android:label="Contrôle - Contrôle tactile"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

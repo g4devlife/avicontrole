@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Acheter une licence — Remote Control</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    h1 { font-size: 24px; color: #a78bfa; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+
+    /* ── Plans ── */
+    .plans { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .plan-card {
+      flex: 1; min-width: 160px;
+      background: #1a1a2e;
+      border: 2px solid #2d2d44;
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: center;
+    }
+    .plan-card:hover { border-color: #a78bfa; transform: translateY(-2px); }
+    .plan-card.selected { border-color: #a78bfa; background: #1e1040; }
+    .plan-card .price { font-size: 28px; font-weight: 700; color: #a78bfa; }
+    .plan-card .price span { font-size: 14px; color: #94a3b8; font-weight: 400; }
+    .plan-card .name { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+    .plan-card .badge {
+      display: inline-block; background: #10b981;
+      color: #fff; font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; margin-top: 8px;
+    }
+
+    /* ── Cryptos ── */
+    .section-title { font-size: 13px; font-weight: 600; color: #64748b;
+                     text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+    .cryptos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 32px; }
+    .crypto-btn {
+      background: #1a1a2e; border: 2px solid #2d2d44;
+      border-radius: 8px; padding: 8px 14px;
+      color: #e2e8f0; font-size: 13px; cursor: pointer;
+      transition: all .2s; display: flex; align-items: center; gap: 6px;
+    }
+    .crypto-btn:hover  { border-color: #38bdf8; }
+    .crypto-btn.active { border-color: #38bdf8; background: #0c2a3a; color: #38bdf8; }
+    .crypto-icon { font-size: 16px; }
+
+    /* ── Bouton payer ── */
+    .btn-pay {
+      background: linear-gradient(135deg, #a78bfa, #38bdf8);
+      color: #fff; border: none; border-radius: 10px;
+      padding: 14px 32px; font-size: 16px; font-weight: 700;
+      cursor: pointer; transition: all .2s; width: 100%; max-width: 340px;
+    }
+    .btn-pay:hover    { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(167,139,250,.4); }
+    .btn-pay:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    /* ── Fenêtre de paiement ── */
+    #payment-modal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.7);
+      align-items: center; justify-content: center;
+      z-index: 100;
+    }
+    #payment-modal.open { display: flex; }
+    .modal-box {
+      background: #1a1a2e; border: 1px solid #2d2d44;
+      border-radius: 16px; padding: 32px; width: 460px;
+      max-width: 95vw;
+    }
+    .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+
+    .address-box {
+      background: #0f0f1a; border: 1px solid #334155;
+      border-radius: 8px; padding: 14px; margin: 12px 0;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .address-text {
+      font-family: monospace; font-size: 13px;
+      color: #38bdf8; word-break: break-all; flex: 1;
+    }
+    .btn-copy {
+      background: #334155; border: none; border-radius: 6px;
+      color: #e2e8f0; padding: 6px 12px; font-size: 12px;
+      cursor: pointer; white-space: nowrap; transition: background .2s;
+    }
+    .btn-copy:hover { background: #475569; }
+
+    .amount-big {
+      text-align: center; font-size: 26px; font-weight: 700;
+      color: #a78bfa; margin: 16px 0 4px;
+    }
+    .amount-usd { text-align: center; color: #64748b; font-size: 13px; }
+
+    .status-box {
+      margin-top: 16px; padding: 12px;
+      border-radius: 8px; font-size: 13px;
+      text-align: center;
+    }
+    .status-waiting  { background: #1c1700; color: #f59e0b; border: 1px solid #78350f; }
+    .status-success  { background: #052e16; color: #10b981; border: 1px solid #064e3b; }
+    .status-expired  { background: #2d0000; color: #ef4444; border: 1px solid #7f1d1d; }
+
+    .timer { font-size: 12px; color: #64748b; text-align: center; margin-top: 8px; }
+
+    .qr-container { text-align: center; margin: 12px 0; }
+    .qr-container img { width: 140px; height: 140px; border-radius: 8px; }
+
+    .btn-close-modal {
+      background: transparent; border: 1px solid #334155;
+      color: #94a3b8; border-radius: 8px; padding: 8px 20px;
+      cursor: pointer; font-size: 13px; width: 100%; margin-top: 16px;
+      transition: all .2s;
+    }
+    .btn-close-modal:hover { background: #1e293b; }
+
+    .info-note {
+      font-size: 12px; color: #475569; margin-top: 8px; text-align: center; line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Acheter une licence</h1>
+<p class="subtitle">Paiement 100% en cryptomonnaie — aucune carte bancaire requise</p>
+
+<!-- Plans -->
+<div class="section-title">Choisir un plan</div>
+<div class="plans" id="plans-container">
+  <!-- Généré dynamiquement -->
+</div>
+
+<!-- Cryptos -->
+<div class="section-title">Payer avec</div>
+<div class="cryptos" id="cryptos-container">
+  <!-- Généré dynamiquement -->
+</div>
+
+<button class="btn-pay" id="btn-pay" onclick="startPayment()">
+  Générer l'adresse de paiement
+</button>
+
+<!-- Modal de paiement -->
+<div id="payment-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Paiement crypto</div>
+
+    <div class="amount-big" id="modal-amount"></div>
+    <div class="amount-usd" id="modal-usd"></div>
+
+    <div class="qr-container">
+      <img id="modal-qr" src="" alt="QR Code" style="display:none" />
+    </div>
+
+    <div style="font-size:12px;color:#64748b;margin-bottom:4px">Adresse de paiement :</div>
+    <div class="address-box">
+      <span class="address-text" id="modal-address"></span>
+      <button class="btn-copy" onclick="copyAddress()">Copier</button>
+    </div>
+
+    <div class="status-box status-waiting" id="modal-status">
+      ⏳ En attente de paiement...
+    </div>
+    <div class="timer" id="modal-timer"></div>
+
+    <p class="info-note">
+      Envoyez exactement le montant indiqué.<br>
+      La licence sera envoyée par email dès confirmation blockchain.
+    </p>
+
+    <button class="btn-close-modal" onclick="closeModal()">Fermer</button>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:3000/api';
+let token = localStorage.getItem('auth_token') || '';
+
+let selectedPlan     = 'monthly';
+let selectedCurrency = 'usdttrc20';
+let currentPaymentId = null;
+let pollInterval     = null;
+let timerInterval    = null;
+
+// ── Charger les prix et cryptos ───────────────────────
+async function loadData() {
+  const [pricesRes, currenciesRes] = await Promise.all([
+    fetch(`${API}/payment/prices`),
+    fetch(`${API}/payment/currencies`),
+  ]);
+  const { prices }     = await pricesRes.json();
+  const { currencies } = await currenciesRes.json();
+
+  // Afficher les plans
+  const plansEl = document.getElementById('plans-container');
+  plansEl.innerHTML = Object.entries(prices).map(([key, val]) => `
+    <div class="plan-card ${key === 'monthly' ? 'selected' : ''}"
+         onclick="selectPlan('${key}', this)">
+      <div class="price">$${val.usd}<span>${key === 'monthly' ? '/mois' : key === 'yearly' ? '/an' : ''}</span></div>
+      <div class="name">${val.label}</div>
+      ${key === 'yearly' ? '<div class="badge">-33%</div>' : ''}
+      ${key === 'lifetime' ? '<div class="badge">Illimité</div>' : ''}
+    </div>
+  `).join('');
+
+  // Afficher les cryptos
+  const cryptosEl = document.getElementById('cryptos-container');
+  cryptosEl.innerHTML = currencies.map(c => `
+    <button class="crypto-btn ${c.id === 'usdttrc20' ? 'active' : ''}"
+            onclick="selectCurrency('${c.id}', '${c.symbol}', this)">
+      <span class="crypto-icon">${c.icon}</span>
+      ${c.symbol}${c.id.includes('trc20') ? ' TRC20' : c.id.includes('erc20') ? ' ERC20' : c.id.includes('sol') ? ' SOL' : ''}
+    </button>
+  `).join('');
+}
+
+function selectPlan(plan, el) {
+  selectedPlan = plan;
+  document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function selectCurrency(id, symbol, el) {
+  selectedCurrency = id;
+  document.querySelectorAll('.crypto-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Créer le paiement ─────────────────────────────────
+async function startPayment() {
+  if (!token) {
+    alert('Connectez-vous d\'abord pour acheter une licence.');
+    return;
+  }
+
+  document.getElementById('btn-pay').disabled = true;
+
+  const res = await fetch(`${API}/payment/create`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify({ plan: selectedPlan, currency: selectedCurrency }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    alert(`Erreur: ${data.error}`);
+    document.getElementById('btn-pay').disabled = false;
+    return;
+  }
+
+  const { payment } = data;
+  currentPaymentId = payment.paymentId;
+
+  // Afficher le modal
+  document.getElementById('modal-title').textContent =
+    `Payer en ${payment.payCurrency.toUpperCase()}`;
+  document.getElementById('modal-amount').textContent =
+    `${payment.payAmount} ${payment.payCurrency.toUpperCase()}`;
+  document.getElementById('modal-usd').textContent =
+    `≈ $${payment.priceUsd} USD`;
+  document.getElementById('modal-address').textContent = payment.payAddress;
+
+  // QR Code via API gratuite
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${payment.payAddress}`;
+  const qrImg = document.getElementById('modal-qr');
+  qrImg.src = qrUrl;
+  qrImg.style.display = 'block';
+
+  document.getElementById('modal-status').className = 'status-box status-waiting';
+  document.getElementById('modal-status').textContent = '⏳ En attente de paiement...';
+
+  document.getElementById('payment-modal').classList.add('open');
+
+  // Timer 1h
+  startTimer(payment.expiresAt);
+
+  // Polling du statut toutes les 15s
+  pollInterval = setInterval(() => checkStatus(payment.paymentId), 15000);
+}
+
+async function checkStatus(paymentId) {
+  const res  = await fetch(`${API}/payment/status/${paymentId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  const data = await res.json();
+
+  if (data.status === 'finished' || data.status === 'confirmed') {
+    clearInterval(pollInterval);
+    clearInterval(timerInterval);
+    const el = document.getElementById('modal-status');
+    el.className   = 'status-box status-success';
+    el.innerHTML   = `✅ Paiement confirmé !<br><strong>Votre clé de licence a été envoyée par email.</strong>`;
+
+    if (data.licenseKey) {
+      el.innerHTML += `<br><br>Clé : <code style="font-size:16px;letter-spacing:2px">${data.licenseKey}</code>`;
+    }
+
+    document.getElementById('btn-pay').disabled = false;
+  }
+}
+
+function startTimer(expiresAt) {
+  const end = new Date(expiresAt).getTime();
+  timerInterval = setInterval(() => {
+    const remaining = end - Date.now();
+    if (remaining <= 0) {
+      clearInterval(timerInterval);
+      clearInterval(pollInterval);
+      document.getElementById('modal-timer').textContent = 'Paiement expiré';
+      const el = document.getElementById('modal-status');
+      el.className   = 'status-box status-expired';
+      el.textContent = '❌ Ce paiement a expiré. Veuillez en créer un nouveau.';
+      return;
+    }
+    const min = Math.floor(remaining / 60000);
+    const sec = Math.floor((remaining % 60000) / 1000);
+    document.getElementById('modal-timer').textContent =
+      `Expire dans ${min}:${sec.toString().padStart(2,'0')}`;
+  }, 1000);
+}
+
+function copyAddress() {
+  const addr = document.getElementById('modal-address').textContent;
+  navigator.clipboard.writeText(addr);
+  document.querySelector('.btn-copy').textContent = '✓ Copié !';
+  setTimeout(() => document.querySelector('.btn-copy').textContent = 'Copier', 2000);
+}
+
+function closeModal() {
+  document.getElementById('payment-modal').classList.remove('open');
+  document.getElementById('btn-pay').disabled = false;
+  clearInterval(pollInterval);
+  clearInterval(timerInterval);
+}
+
+loadData();
+</script>
+</body>
+</html>

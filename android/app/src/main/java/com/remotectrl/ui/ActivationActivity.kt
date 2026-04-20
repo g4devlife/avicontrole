@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.remotectrl.app.R
 import com.remotectrl.license.LicenseManager
 
 class ActivationActivity : AppCompatActivity() {

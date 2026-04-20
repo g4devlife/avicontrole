@@ -28,11 +28,20 @@ class LicenseManager private constructor(private val context: Context) {
             }
     }
 
-    private val prefs by lazy {
+    private var _prefs: android.content.SharedPreferences? = null
+    private val prefs: android.content.SharedPreferences
+        get() {
+            if (_prefs == null) {
+                _prefs = createPrefs()
+            }
+            return _prefs!!
+        }
+
+    private fun createPrefs(): android.content.SharedPreferences {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
-        EncryptedSharedPreferences.create(
+        return EncryptedSharedPreferences.create(
             context,
             "license_prefs",
             masterKey,

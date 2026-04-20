@@ -1,17 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Avi Contrôle</string>
-    <string name="btn_start">Démarrer le streaming</string>
-    <string name="btn_stop">Arrêter</string>
-    <string name="label_code">Code de session</string>
+    <string name="app_name">Contrôle</string>
+    <string name="btn_start">Connexion</string>
+    <string name="btn_stop">Déconnecter</string>
     <string name="label_waiting">En attente de connexion…</string>
-    <string name="label_no_license">Appuyez sur Démarrer pour commencer</string>
+    <string name="label_no_license">Appuyez sur Connexion pour commencer</string>
     <string name="activation_title">Activation de licence</string>
     <string name="hint_license_key">XXXXX-XXXX-XXXX-XXXX-XXXXX</string>
     <string name="btn_validate">Valider la clé</string>
-    <string name="notif_channel">Avi Contrôle - Streaming</string>
-    <string name="notif_title">Avi Contrôle actif</string>
-    <string name="notif_text">Écran en cours de partage</string>
-    <string name="accessibility_service_label">Avi Contrôle - Contrôle tactile</string>
-    <string name="accessibility_service_description">Permet à Avi Contrôle d\'injecter des événements tactiles depuis un PC distant</string>
+    <string name="notif_channel">Contrôle - Connexion</string>
+    <string name="notif_title">Contrôle actif</string>
+    <string name="notif_text">Connexion PC active</string>
+    <string name="accessibility_service_label">Contrôle - Contrôle tactile</string>
+    <string name="accessibility_service_description">Permet à Contrôle d\'injecter des événements tactiles depuis un PC distant</string>
 </resources>

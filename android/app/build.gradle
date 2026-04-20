@@ -31,7 +31,7 @@ android {
 
 dependencies {
     // WebRTC
-    implementation 'io.getstream:stream-webrtc-android:1.1.0'
+    implementation 'io.getstream:stream-webrtc-android:1.3.3'
 
     // Socket.IO
     implementation('io.socket:socket.io-client:2.1.0') {
@@ -43,6 +43,9 @@ dependencies {
 
     // Crypto (stockage licence chiffré)
     implementation 'androidx.security:security-crypto:1.1.0-alpha06'
+
+    // LocalBroadcastManager
+    implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
 
     // UI
     implementation 'androidx.appcompat:appcompat:1.6.1'
