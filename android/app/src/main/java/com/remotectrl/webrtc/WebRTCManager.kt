@@ -39,6 +39,10 @@ class WebRTCManager private constructor(private val context: Context) {
     private var pendingWidth:      Int     = 0
     private var pendingHeight:     Int     = 0
 
+    // Évite les redémarrages de capture en double (ex: onStop + ACTION_SCREEN_ON simultanés)
+    private val mainHandler       = android.os.Handler(android.os.Looper.getMainLooper())
+    private val restartScheduled  = java.util.concurrent.atomic.AtomicBoolean(false)
+
     var onConnected:    (() -> Unit)? = null
     var onDisconnected: (() -> Unit)? = null
 
@@ -380,15 +384,26 @@ class WebRTCManager private constructor(private val context: Context) {
 
     fun restartCapture() {
         if (!isStreaming || !isCapturing) return
+        // Dedup : si un restart est déjà planifié (ex: onStop + ACTION_SCREEN_ON simultanés)
+        if (restartScheduled.getAndSet(true)) {
+            Log.d(TAG, "Restart déjà planifié, ignoré")
+            return
+        }
+        Log.i(TAG, "Redémarrage capture écran planifié")
         try {
-            Log.i(TAG, "Redémarrage capture écran")
             screenCapturer?.stop()
             screenCapturer = null
-            Thread.sleep(200L)
-            startScreenCapture()
         } catch (e: Exception) {
-            Log.e(TAG, "Erreur restartCapture: ${e.message}")
+            Log.w(TAG, "stop capturer: ${e.message}")
         }
+        // Attendre sur un thread non-UI — jamais Thread.sleep sur le main thread
+        mainHandler.postDelayed({
+            restartScheduled.set(false)
+            if (isStreaming && isCapturing) {
+                Log.i(TAG, "Redémarrage capture écran — démarrage")
+                startScreenCapture()
+            }
+        }, 400L)
     }
 
     // ── Émission des champs de saisie vers le desktop ─────────────

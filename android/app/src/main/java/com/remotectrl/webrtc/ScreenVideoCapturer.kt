@@ -38,8 +38,13 @@ class ScreenVideoCapturer(
 
         capturer = ScreenCapturerAndroid(resultData, object : MediaProjection.Callback() {
             override fun onStop() {
-                Log.w(TAG, "MediaProjection stopped externally")
+                Log.w(TAG, "MediaProjection stopped — nettoyage + restart planifié")
+                // Nettoyer le capturer actuel en premier
                 stop()
+                // Demander à WebRTCManager de redémarrer dès que l'écran se rallume.
+                // Le flag AtomicBoolean dans WebRTCManager évitera le double-restart
+                // si ACTION_SCREEN_ON / ACTION_USER_PRESENT arrive quasi simultanément.
+                WebRTCManager.getInstance(context).restartCapture()
             }
         })
 

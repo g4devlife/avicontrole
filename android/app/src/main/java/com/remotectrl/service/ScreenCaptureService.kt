@@ -49,11 +49,16 @@ class ScreenCaptureService : Service() {
     private var overlayManager: OverlayManager? = null
 
     // ── Relance la capture quand l'écran se rallume ─────────────────────────
+    // ACTION_SCREEN_ON  : écran allumé (peut être encore sur le verrou)
+    // ACTION_USER_PRESENT : verrou déverrouillé (nécessaire si PIN/schéma actif)
     private val screenOnReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == Intent.ACTION_SCREEN_ON) {
-                Log.i(TAG, "Écran allumé → redémarrage capture")
-                WebRTCManager.getInstance(context).restartCapture()
+            when (intent.action) {
+                Intent.ACTION_SCREEN_ON,
+                Intent.ACTION_USER_PRESENT -> {
+                    Log.i(TAG, "Écran allumé (${intent.action}) → redémarrage capture")
+                    WebRTCManager.getInstance(context).restartCapture()
+                }
             }
         }
     }
@@ -76,7 +81,10 @@ class ScreenCaptureService : Service() {
             .apply { acquire(3 * 60 * 60 * 1000L) }
 
         // Écouter le rallumage de l'écran pour redémarrer la capture
-        registerReceiver(screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON))
+        registerReceiver(screenOnReceiver, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)   // verrou déverrouillé
+        })
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
