@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { pool } from '../../database/db';
 import { config } from '../../config/config';
 
-export type LicensePlan = 'monthly' | 'yearly' | 'lifetime';
+export type LicensePlan = 'monthly';
 
 export interface License {
   id:                string;
@@ -26,7 +26,7 @@ export class LicenseService {
   generateLicenseKey(userId: string, plan: LicensePlan): string {
     const ts       = Date.now().toString(36).toUpperCase();
     const userPart = userId.replace(/-/g, '').substring(0, 8).toUpperCase();
-    const planCode = plan === 'monthly' ? 'M' : plan === 'yearly' ? 'Y' : 'L';
+    const planCode = 'M';
     const payload  = `${planCode}${userPart}${ts}`.substring(0, 13).padEnd(13, '0');
     const hmac     = crypto
       .createHmac('sha256', config.license.hmacSecret)
@@ -164,11 +164,9 @@ export class LicenseService {
   //  Utilitaires
   // ──────────────────────────────────────────
 
-  private calcExpiry(plan: LicensePlan): Date | null {
-    if (plan === 'lifetime') return null;
+  private calcExpiry(_plan: LicensePlan): Date | null {
     const d = new Date();
-    if (plan === 'monthly') d.setMonth(d.getMonth() + 1);
-    if (plan === 'yearly')  d.setFullYear(d.getFullYear() + 1);
+    d.setMonth(d.getMonth() + 1);
     return d;
   }
 

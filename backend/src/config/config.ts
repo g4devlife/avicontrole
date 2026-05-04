@@ -20,12 +20,10 @@ export const config = {
     maxTransfers:  2,
   },
 
-  // Prix USD des plans (utilisés pour la conversion crypto)
+  // Prix en EUR (utilisés pour la conversion crypto)
   nowpayments: {
     prices: {
-      monthly:  parseFloat(process.env.PRICE_MONTHLY_USD  || '9.99'),
-      yearly:   parseFloat(process.env.PRICE_YEARLY_USD   || '79.99'),
-      lifetime: parseFloat(process.env.PRICE_LIFETIME_USD || '199.99'),
+      monthly: parseFloat(process.env.PRICE_MONTHLY_EUR || '2000'),
     },
   },
 

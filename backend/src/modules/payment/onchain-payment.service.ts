@@ -13,9 +13,7 @@ export const COINS = [
 ];
 
 export const PLANS = [
-  { id: 'monthly',  label: 'Mensuel',  emoji: '📅' },
-  { id: 'yearly',   label: 'Annuel',   emoji: '📆' },
-  { id: 'lifetime', label: 'À vie',    emoji: '♾️'  },
+  { id: 'monthly', label: 'Mensuel', emoji: '📅' },
 ];
 
 // ── Créer une commande ───────────────────────────────────────

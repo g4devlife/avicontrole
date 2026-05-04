@@ -55,19 +55,12 @@ export class TelegramService {
   // ──────────────────────────────────────────
 
   private async handleBuy(chatId: number): Promise<void> {
-    const prices = config.nowpayments.prices;
-    const buttons = PLANS.map(p => ([{
-      text:          `${p.emoji} ${p.label} — $${prices[p.id as keyof typeof prices]}`,
-      callback_data: `buy_plan:${p.id}`,
-    }]));
-
+    const price = config.nowpayments.prices.monthly;
     await this.sendInlineKeyboard(
       chatId,
-      `🛒 <b>Choisissez votre plan</b>\n\n` +
-      `📅 Mensuel  — $${prices.monthly}\n` +
-      `📆 Annuel   — $${prices.yearly}\n` +
-      `♾️ À vie     — $${prices.lifetime}`,
-      buttons,
+      `🛒 <b>Abonnement Avi Contrôle</b>\n\n` +
+      `📅 Mensuel — <b>${price} €</b>`,
+      [[{ text: `📅 Mensuel — ${price} €`, callback_data: `buy_plan:monthly` }]],
     );
   }
 
@@ -152,9 +145,7 @@ export class TelegramService {
     apkUrl:         string,
   ): Promise<boolean> {
     const planLabel: Record<string, string> = {
-      monthly:  'Mensuel (1 mois)',
-      yearly:   'Annuel (1 an)',
-      lifetime: 'À vie ♾️',
+      monthly: 'Mensuel (1 mois)',
     };
 
     const msg =
@@ -200,10 +191,10 @@ L'app vous guidera automatiquement.
     // /genkey [plan] [@username_telegram ou note]
     // plan: monthly | yearly | lifetime
     if (cmd === '/genkey') {
-      const plan  = (parts[1] || 'lifetime') as LicensePlan;
+      const plan  = (parts[1] || 'monthly') as LicensePlan;
       const target = parts[2] || '';   // @username ou note
-      if (!['monthly','yearly','lifetime'].includes(plan)) {
-        await this.sendMessage(chatId, '❌ Plan invalide. Utiliser : monthly | yearly | lifetime');
+      if (plan !== 'monthly') {
+        await this.sendMessage(chatId, '❌ Plan invalide. Seul <b>monthly</b> est disponible.');
         return;
       }
 
@@ -359,7 +350,7 @@ L'app vous guidera automatiquement.
     if (cmd === '/admin' || cmd === '/help') {
       await this.sendMessage(chatId,
         `🔧 <b>Commandes Admin — Avi Contrôle</b>\n\n` +
-        `/genkey [monthly|yearly|lifetime] [note] — Générer une clé\n` +
+        `/genkey [monthly] [note] — Générer une clé\n` +
         `/revoke [clé] — Révoquer une licence\n` +
         `/extend [clé] [jours] — Prolonger une licence\n` +
         `/keyinfo [clé] — Infos sur une clé\n` +
@@ -414,9 +405,10 @@ L'app vous guidera automatiquement.
       await this.sendMessage(chatId,
         `👋 Bonjour <b>${message.from.first_name}</b> !\n\n` +
         `Je suis le bot <b>Avi Contrôle</b>.\n\n` +
+        `📅 Abonnement mensuel — <b>2 000 €/mois</b>\n\n` +
         `Commandes disponibles :\n` +
-        `/buy — Acheter une licence (BTC, ETH, USDT, LTC)\n` +
-        `/status — Voir vos licences actives`
+        `/buy — S'abonner (BTC, ETH, USDT, LTC)\n` +
+        `/status — Voir votre abonnement actif`
       );
       return;
     }
