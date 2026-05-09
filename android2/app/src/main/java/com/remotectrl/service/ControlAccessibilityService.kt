@@ -306,51 +306,20 @@ class ControlAccessibilityService : AccessibilityService() {
     }
 
     // ──────────────────────────────────────────
-    //  Clic via nœud d'accessibilité (ACTION_CLICK)
+    //  Clic depuis le panel quick-action → tap gestuel précis
     // ──────────────────────────────────────────
 
     private fun handleNodeClick(json: JSONObject) {
-        val x = (json.optDouble("x", 0.5) * screenWidth).toInt()
-        val y = (json.optDouble("y", 0.5) * screenHeight).toInt()
-
-        val root = rootInActiveWindow ?: return
-        try {
-            val node = findNodeAt(root, x, y) ?: return
-            // Remonter au premier ancêtre cliquable
-            var target = node
-            while (!target.isClickable) {
-                val parent = target.parent ?: break
-                if (target !== node) target.recycle()
-                target = parent
-            }
-            target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            Log.i(TAG, "Click node: ${target.className} text=${target.text}")
-            if (target !== node) target.recycle()
-        } finally {
-            root.recycle()
-        }
-    }
-
-    /**
-     * Retourne le nœud le plus profond contenant (x, y).
-     * Tous les nœuds intermédiaires non retournés sont recyclés.
-     * Le nœud retourné (et root s'il est retourné) doit être recyclé par l'appelant.
-     */
-    private fun findNodeAt(root: AccessibilityNodeInfo, x: Int, y: Int): AccessibilityNodeInfo? {
-        val bounds = Rect()
-        root.getBoundsInScreen(bounds)
-        if (!bounds.contains(x, y)) return null
-
-        for (i in 0 until root.childCount) {
-            val child = root.getChild(i) ?: continue
-            val result = findNodeAt(child, x, y)
-            if (result != null) {
-                if (result !== child) child.recycle()
-                return result
-            }
-            child.recycle()
-        }
-        return root
+        val x = (json.optDouble("x", 0.5) * screenWidth).toFloat()
+        val y = (json.optDouble("y", 0.5) * screenHeight).toFloat()
+        val path = Path().apply { moveTo(x, y) }
+        dispatchGesture(
+            GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0L, 50L))
+                .build(),
+            null, null,
+        )
+        Log.i(TAG, "Tap gestuel: (${x.toInt()}, ${y.toInt()})")
     }
 
     // ──────────────────────────────────────────
