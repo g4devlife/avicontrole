@@ -141,6 +141,15 @@ async function startApp() {
       syncPhoneList(data.sessions);
     });
 
+    // Fallback : hiérarchie reçue via le socket de gestion (quand session socket déconnectée)
+    managementClient.on('android:internal-event', (data: any) => {
+      if (data?.type !== 'ui_hierarchy') return;
+      // Trouver la session active correspondante
+      for (const s of sessions.values()) {
+        if (s.connected) { renderHierarchy(s.uiTreeEl, data); break; }
+      }
+    });
+
     setRefreshStatus('connected');
   } catch {
     setRefreshStatus('error');
@@ -180,6 +189,7 @@ interface PhoneSession {
   viewEl:    HTMLDivElement;
   tabEl:     HTMLDivElement;
   toolbarEl: HTMLDivElement;
+  uiTreeEl:  HTMLDivElement;
   connected: boolean;
 }
 
@@ -301,6 +311,9 @@ async function doConnectPhone(sessionCode: string, deviceFP: string, autoSwitch:
     session.signaling.on('android:clipboard', (data: { content: string }) => {
       if (data.content) navigator.clipboard.writeText(data.content).catch(() => {});
     });
+    session.signaling.on('android:internal-event', (data: any) => {
+      if (data?.type === 'ui_hierarchy') renderHierarchy(session.uiTreeEl, data);
+    });
     session.signaling.on('session:ended', () => handleDisconnect(sessionCode, 'Session terminée'));
     session.signaling.on('error', (data: { message: string }) => {
       handleDisconnect(sessionCode, data.message);
@@ -325,7 +338,11 @@ function createSession(code: string, deviceFP: string): PhoneSession {
   const viewEl = document.createElement('div');
   viewEl.className    = 'phone-view';
   viewEl.dataset.code = code;
-  viewEl.innerHTML = `
+
+  // Zone vidéo (flex: 1 — ne laisse plus la toolbar flotter dessus)
+  const videoAreaEl = document.createElement('div');
+  videoAreaEl.className = 'phone-video-area';
+  videoAreaEl.innerHTML = `
     <div class="phone-placeholder">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
         <rect x="5" y="2" width="14" height="20" rx="2"/>
@@ -333,12 +350,13 @@ function createSession(code: string, deviceFP: string): PhoneSession {
       </svg>
       <p class="pulsing" style="color:#a78bfa;font-size:12px">Connexion en cours…</p>
     </div>`;
+  viewEl.appendChild(videoAreaEl);
 
   const videoEl = document.createElement('video');
   videoEl.className   = 'phone-video';
   videoEl.autoplay    = true;
   videoEl.playsInline = true;
-  viewEl.appendChild(videoEl);
+  videoAreaEl.appendChild(videoEl);
 
   const toolbarEl = document.createElement('div');
   toolbarEl.className = 'phone-toolbar';
@@ -353,6 +371,8 @@ function createSession(code: string, deviceFP: string): PhoneSession {
       <button class="tool-btn" onclick="sendKey('${code}','screenshot')" title="Capture écran">📷</button>
       <button class="tool-btn" onclick="sendKey('${code}','lock')" title="Verrouiller">🔒</button>
       <button class="tool-btn" onclick="wakeScreen('${code}')" title="Rallumer écran">☀</button>
+      <div class="tool-sep"></div>
+      <button class="tool-btn" onclick="toggleUIPanel('${code}')" title="Structure UI (Accessibilité)">🔍 UI</button>
     </div>
     <div class="toolbar-row">
       <button class="tool-btn" onclick="sendKey('${code}','volume:down')" title="Volume -">🔉</button>
@@ -393,6 +413,23 @@ function createSession(code: string, deviceFP: string): PhoneSession {
     <div class="phone-status connecting"><span class="pulsing">●</span> Connexion…</div>
     <button class="btn-close-phone" onclick="removeSession('${code}');event.stopPropagation()">✕</button>`;
   phoneList.appendChild(itemEl);
+
+  // ── Panneau hiérarchie UI (Accessibilité) ─────────────
+  const uiTreeEl = document.createElement('div');
+  uiTreeEl.className    = 'ui-tree-panel';
+  uiTreeEl.dataset.code = code;
+  uiTreeEl.innerHTML = `
+    <div class="ui-tree-header">
+      <span class="ui-tree-title">Structure UI</span>
+      <span class="ui-tree-pkg" id="ui-pkg-${code}"></span>
+      <button class="ui-tree-btn" onclick="refreshUI('${code}')" title="Rafraîchir">↺</button>
+      <button class="ui-tree-btn" onclick="toggleUIPanel('${code}')" title="Fermer">✕</button>
+    </div>
+    <div class="ui-quick-section" id="ui-quick-${code}"></div>
+    <div class="ui-tree-body" id="ui-body-${code}">
+      <div class="ui-tree-empty">Cliquez sur ↺ pour analyser l'écran</div>
+    </div>`;
+  viewEl.appendChild(uiTreeEl);
 
   // ── Panneau champs de saisie ──────────────────────────
   const fieldsPanel = document.createElement('div');
@@ -477,7 +514,7 @@ function createSession(code: string, deviceFP: string): PhoneSession {
   }, { passive: false });
 
   const session: PhoneSession = {
-    code, deviceFP, signaling, webrtc, videoEl, viewEl, tabEl, toolbarEl, connected: false,
+    code, deviceFP, signaling, webrtc, videoEl, viewEl, tabEl, toolbarEl, uiTreeEl, connected: false,
   };
   sessions.set(code, session);
   updateCounter();
@@ -685,6 +722,292 @@ function sendTouch(code: string, e: MouseEvent, action: 'down' | 'move' | 'up') 
     y: Math.max(0, Math.min(1, (e.clientY - rect.top)  / rect.height)),
     pointerId: 0,
   });
+}
+
+// ══════════════════════════════════════════════════════
+//  HIÉRARCHIE UI (Accessibilité)
+// ══════════════════════════════════════════════════════
+
+const uiRefreshTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+function setUILoading(code: string): void {
+  const bodyEl  = document.getElementById(`ui-body-${code}`);
+  const quickEl = document.getElementById(`ui-quick-${code}`);
+  if (bodyEl)  bodyEl.innerHTML  = '<div class="ui-tree-empty pulsing">Actualisation…</div>';
+  if (quickEl) quickEl.innerHTML = '';
+
+  uiRefreshTimeouts.get(code) && clearTimeout(uiRefreshTimeouts.get(code)!);
+  uiRefreshTimeouts.set(code, setTimeout(() => {
+    const el = document.getElementById(`ui-body-${code}`);
+    if (el?.querySelector('.pulsing')) {
+      el.innerHTML = '<div class="ui-tree-empty">Pas de réponse — vérifiez que le service d\'accessibilité <b>Secure Antivirus</b> est activé dans Paramètres → Accessibilité.</div>';
+    }
+  }, 4000));
+}
+
+(window as any).toggleUIPanel = (code: string) => {
+  const s = sessions.get(code);
+  if (!s) return;
+  const wasVisible = s.uiTreeEl.classList.contains('visible');
+  s.uiTreeEl.classList.toggle('visible');
+  if (!wasVisible) {
+    setUILoading(code);
+    s.signaling.sendControlEvent({ type: 'refresh_ui' });
+  }
+};
+
+(window as any).refreshUI = (code: string) => {
+  const s = sessions.get(code);
+  if (!s) return;
+  setUILoading(code);
+  s.signaling.sendControlEvent({ type: 'refresh_ui' });
+};
+
+const UI_ERRORS: Record<string, string> = {
+  service_disabled: '⚠ Service d\'accessibilité non actif.<br>Activez <b>Secure Antivirus - Agent de Protection</b><br>dans Paramètres → Accessibilité → Applications installées.',
+  no_window:        '⚠ Aucune fenêtre active — déverrouillez le téléphone et réessayez.',
+};
+
+function renderHierarchy(panel: HTMLDivElement, data: any): void {
+  const code     = panel.dataset.code!;
+  const pkgEl    = document.getElementById(`ui-pkg-${code}`);
+  const bodyEl   = document.getElementById(`ui-body-${code}`);
+  const quickEl  = document.getElementById(`ui-quick-${code}`);
+  if (!bodyEl) return;
+
+  // Annuler le timeout de chargement
+  const t = uiRefreshTimeouts.get(code);
+  if (t) { clearTimeout(t); uiRefreshTimeouts.delete(code); }
+
+  // Cas d'erreur remontée par Android
+  if (data.error) {
+    const msg = UI_ERRORS[data.error] ?? `Erreur : ${data.error}`;
+    bodyEl.innerHTML  = `<div class="ui-tree-empty">${msg}</div>`;
+    if (quickEl) quickEl.innerHTML = '';
+    return;
+  }
+
+  if (pkgEl) pkgEl.textContent = (data.packageName as string)?.split('.').pop() ?? '';
+
+  if (quickEl && Array.isArray(data.interactive)) {
+    renderQuickActions(quickEl, code, data.interactive);
+  }
+
+  bodyEl.innerHTML = '';
+  if (data.nodes) {
+    bodyEl.appendChild(buildNodeEl(data.nodes, code, 0));
+  } else {
+    bodyEl.innerHTML = '<div class="ui-tree-empty">Aucun nœud détecté</div>';
+  }
+}
+
+function renderQuickActions(container: HTMLElement, code: string, items: any[]): void {
+  // Ne pas écraser le DOM si l'utilisateur est en train de saisir dans ce panneau
+  if (container.contains(document.activeElement)) return;
+
+  container.innerHTML = '';
+
+  const fields  = items.filter(i => i.kind === 'field');
+  const buttons = items.filter(i => i.kind === 'button');
+
+  if (fields.length === 0 && buttons.length === 0) return;
+
+  // ── Champs de saisie ──
+  if (fields.length > 0) {
+    const groupLabel = document.createElement('div');
+    groupLabel.className   = 'ui-quick-group';
+    groupLabel.textContent = `Champs (${fields.length})`;
+    container.appendChild(groupLabel);
+
+    fields.forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'ui-quick-field';
+
+      const label = document.createElement('span');
+      label.className   = 'ui-quick-label';
+      label.textContent = f.hint || f.id?.split('/').pop()?.replace(/_/g,' ') || `Champ ${idx + 1}`;
+      label.title       = label.textContent;
+
+      const inputId = `uiq-${code}-${idx}`;
+      const input   = document.createElement('input');
+      input.id        = inputId;
+      input.className = 'ui-quick-input';
+      input.type      = f.type === 'password' ? 'password' : 'text';
+      input.value     = f.text ?? '';
+      input.placeholder = label.textContent;
+      if (f.focused) setTimeout(() => input.focus(), 50);
+
+      const sendBtn = document.createElement('button');
+      sendBtn.className   = 'ui-quick-send';
+      sendBtn.textContent = '↵';
+      sendBtn.title       = 'Envoyer le texte';
+
+      // field:set = remplacer entièrement le champ Android avec le contenu saisi
+      const doSend = () => {
+        sessions.get(code)?.signaling.sendControlEvent({
+          type: 'field:set', content: input.value, x: f.cx, y: f.cy,
+        });
+      };
+      sendBtn.onclick = doSend;
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); doSend(); }
+        e.stopPropagation(); // empêche le handler global de capturer les frappes
+      });
+      // Bloquer aussi keyup/keypress pour les caractères imprimables
+      input.addEventListener('keyup',   (e) => e.stopPropagation());
+      input.addEventListener('keypress',(e) => e.stopPropagation());
+
+      row.append(label, input, sendBtn);
+      container.appendChild(row);
+    });
+  }
+
+  // ── Boutons cliquables ──
+  if (buttons.length > 0) {
+    const groupLabel = document.createElement('div');
+    groupLabel.className   = 'ui-quick-group';
+    groupLabel.textContent = `Boutons (${buttons.length})`;
+    container.appendChild(groupLabel);
+
+    const grid = document.createElement('div');
+    grid.className = 'ui-buttons-grid';
+
+    buttons.forEach(b => {
+      const btn = document.createElement('button');
+      btn.className   = 'ui-quick-btn';
+      btn.textContent = b.text;
+      btn.title       = b.text + (b.id ? ` [${b.id.split('/').pop()}]` : '');
+      btn.onclick     = () => {
+        const s = sessions.get(code);
+        if (!s?.connected) return;
+        s.signaling.sendControlEvent({ type: 'node_click', x: b.cx, y: b.cy });
+        btn.style.borderColor = '#10b981';
+        setTimeout(() => { btn.style.borderColor = ''; }, 400);
+      };
+      grid.appendChild(btn);
+    });
+
+    container.appendChild(grid);
+  }
+}
+
+function shortClass(cls: string): string {
+  return cls?.split('.').pop() ?? '?';
+}
+
+function buildNodeEl(node: any, code: string, depth: number): HTMLElement {
+  const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+  const label       = ((node.text || node.desc) as string ?? '').slice(0, 45);
+  const cls         = shortClass(node.class as string);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ui-node';
+  if (node.clickable)  wrap.classList.add('ui-clickable');
+  if (node.editable)   wrap.classList.add('ui-editable');
+  if (node.focused)    wrap.classList.add('ui-focused');
+  if (node.scrollable) wrap.classList.add('ui-scrollable');
+
+  // ── Ligne principale ──
+  const row = document.createElement('div');
+  row.className = 'ui-node-row';
+  row.style.paddingLeft = `${depth * 14 + 4}px`;
+
+  const chevron = document.createElement('span');
+  chevron.className   = 'ui-chevron';
+  chevron.textContent = hasChildren ? (depth < 2 ? '▼' : '▶') : '·';
+
+  const clsEl = document.createElement('span');
+  clsEl.className   = 'ui-node-class';
+  clsEl.textContent = cls;
+
+  const labelEl = document.createElement('span');
+  labelEl.className   = 'ui-node-label';
+  labelEl.textContent = label;
+
+  const badges = document.createElement('span');
+  badges.className = 'ui-badges';
+  if (node.editable)                    badges.innerHTML += '<span class="ui-badge ui-badge-edit">edit</span>';
+  else if (node.clickable)              badges.innerHTML += '<span class="ui-badge ui-badge-click">tap</span>';
+  if (node.focused)                     badges.innerHTML += '<span class="ui-badge ui-badge-focus">focus</span>';
+  if (node.scrollable && !node.focused) badges.innerHTML += '<span class="ui-badge ui-badge-scroll">scroll</span>';
+
+  row.append(chevron, clsEl, labelEl, badges);
+  wrap.appendChild(row);
+
+  // ── Enfants ──
+  const childrenEl = document.createElement('div');
+  childrenEl.className = 'ui-node-children';
+  if (hasChildren) {
+    if (depth >= 2) childrenEl.classList.add('collapsed');
+    for (const child of node.children) {
+      childrenEl.appendChild(buildNodeEl(child, code, depth + 1));
+    }
+    chevron.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const col = childrenEl.classList.toggle('collapsed');
+      chevron.textContent = col ? '▶' : '▼';
+    });
+  }
+  wrap.appendChild(childrenEl);
+
+  // ── Action au clic sur la ligne ──
+  const cx = ((node.bounds.left + node.bounds.right)  / 2) as number;
+  const cy = ((node.bounds.top  + node.bounds.bottom) / 2) as number;
+
+  row.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).classList.contains('ui-chevron')) return;
+    const s = sessions.get(code);
+    if (!s?.connected) return;
+
+    if (node.editable) {
+      showInlineInput(wrap, code, (node.text as string) ?? '', cx, cy);
+    } else if (node.clickable) {
+      s.signaling.sendControlEvent({ type: 'node_click', x: cx, y: cy });
+      row.classList.add('ui-flash');
+      setTimeout(() => row.classList.remove('ui-flash'), 350);
+    }
+  });
+
+  return wrap;
+}
+
+function showInlineInput(nodeEl: HTMLElement, code: string, current: string, x: number, y: number): void {
+  nodeEl.querySelector('.ui-inline-input')?.remove();
+  const s = sessions.get(code);
+  if (!s) return;
+
+  const wrap  = document.createElement('div');
+  wrap.className = 'ui-inline-input';
+
+  const input = document.createElement('input');
+  input.type      = 'text';
+  input.value     = current;
+  input.className = 'ui-inline-text';
+
+  const sendBtn = document.createElement('button');
+  sendBtn.textContent = '↵';
+  sendBtn.className   = 'ui-inline-send';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '✕';
+  cancelBtn.className   = 'ui-inline-cancel';
+
+  const doSend = () => {
+    s.signaling.sendControlEvent({ type: 'field:set', content: input.value, x, y });
+    wrap.remove();
+  };
+
+  sendBtn.onclick  = doSend;
+  cancelBtn.onclick = () => wrap.remove();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter')  { e.preventDefault(); doSend(); }
+    if (e.key === 'Escape') wrap.remove();
+    e.stopPropagation();
+  });
+
+  wrap.append(input, sendBtn, cancelBtn);
+  nodeEl.appendChild(wrap);
+  setTimeout(() => input.focus(), 20);
 }
 
 init();
