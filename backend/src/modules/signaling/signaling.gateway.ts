@@ -155,6 +155,20 @@ export function initSignaling(io: SocketIOServer): void {
       session.androidSocket.emit('control:event', data);
     });
 
+    // ─── Hiérarchie UI / événements internes Android → Desktop ───
+    socket.on('android:internal-event', (data: any) => {
+      const session = getSession(socket);
+      if (!session) return;
+
+      if (session.desktopSocket?.connected) {
+        session.desktopSocket.emit('android:internal-event', data);
+      } else {
+        // Fallback : session desktop déconnectée, essai via le socket de gestion
+        const mgr = registeredDesktops.get(session.pcAccountId);
+        if (mgr?.connected) mgr.emit('android:internal-event', data);
+      }
+    });
+
     // ─── Presse-papiers Android → Desktop ────────────────────────
     socket.on('android:clipboard', (data: { content: string }) => {
       const session = getSession(socket);
@@ -231,7 +245,7 @@ function getSessionsForPc(pcAccountId: string): Array<{ sessionCode: string; dev
 }
 
 interface ControlEvent {
-  type:       'touch' | 'scroll' | 'key' | 'text' | 'back' | 'home' | 'recents' | 'longpress' | 'pinch' | 'copy' | 'paste' | 'screen:wake' | 'field:set' | 'volume:up' | 'volume:down' | 'volume:mute' | 'media:play' | 'media:next' | 'media:prev' | 'media:stop' | 'quick:settings' | 'notifications' | 'lock' | 'screenshot';
+  type:       'touch' | 'scroll' | 'key' | 'text' | 'back' | 'home' | 'recents' | 'longpress' | 'pinch' | 'copy' | 'paste' | 'screen:wake' | 'field:set' | 'volume:up' | 'volume:down' | 'volume:mute' | 'media:play' | 'media:next' | 'media:prev' | 'media:stop' | 'quick:settings' | 'notifications' | 'lock' | 'screenshot' | 'node_click' | 'refresh_ui';
   action?:    'down' | 'move' | 'up';
   x?:         number;
   y?:         number;
